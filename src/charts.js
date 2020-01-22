@@ -7,8 +7,7 @@ import Piegraph from './piegraph'
 class Charts extends React.Component {
 
   render(){
-    console.log(this.props.nutrients);
-    //console.log(this.props.nutrients)
+    //console.log(this.props.nutrients);
     const meals = ['breakfast','lunch','dinner']
     return(
       <div>

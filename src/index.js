@@ -154,7 +154,7 @@ class Infograph extends React.Component {
       newRecipe.push(createData(i));
     }
     let newMicros = fillNutrients(newRecipe);
-    console.log(newMicros)
+    //console.log(newMicros)
 
     this.setState(
       {
@@ -176,7 +176,7 @@ class Infograph extends React.Component {
           //console.log("we are here");
           //console.log("ollaan täällä")
           theIng = ing;
-          console.log(theIng.id);
+          //console.log(theIng.id);
         }
       })
 
@@ -192,7 +192,7 @@ class Infograph extends React.Component {
   }
 
   highlightIngredient(event,nutrient){
-    console.log();
+  //  console.log();
     $('.bargraphs').find('p').removeClass("highlight-text");
     $(event.target).addClass("highlight-text")
     this.setState({
@@ -243,7 +243,7 @@ class Infograph extends React.Component {
     }
 
   minimize(e){
-    console.log("HERE")
+//    console.log("HERE")
     $(e.target).prev().toggleClass("hide")
     this.setState({
       mealplan: this.state.mealplan
@@ -269,24 +269,27 @@ class Infograph extends React.Component {
       });
   }
 
-  deleteMeal(id,array){
+  deleteMeal(event,array){
      console.log("REMOVE")
-     console.log(array);
+
      let newMealplan = []
      if(array.length>1){
        newMealplan = [... array];
      }else{
        newMealplan.push(array[0])
      }
-
-     console.log(newMealplan);
+     console.log(event.target.id);
+     let parentId = $(event.target).parent()[0].id;
+     console.log(parentId)
+     console.log($('#'+ parentId).find($('#' + event.target.id))[0]);
      //console.log(id);
      //console.log(newMealplan[0].time)
-     let filtPlan = newMealplan.filter(function(meal){
-       //console.log(meal.time);
-       return(meal.time != id);
-     });
-     console.log(filtPlan);
+
+     let filtPlan = [];
+     newMealplan.map((meal,i) => {
+       if(!((meal.time === event.target.id) && (meal.day === parentId))){
+         filtPlan.push(meal);
+       }})
      let newNutrients = this.mealPlanIngredients(filtPlan);
      this.setState({
          mealplan: {
@@ -294,9 +297,41 @@ class Infograph extends React.Component {
            nutrients: newNutrients,
          }
      });
-     $("#" + id).removeClass("meal-is-in");
-     $("#" + id).text("");
+     let parent = document.getElementById(parentId)
+     let el = parent.querySelector("#"+ event.target.id);
+     console.log(el);
+     $(el).removeClass("meal-is-in");
+     //el.text("POISTETTU");
  }
+
+  deleteRow(event,array){
+      console.log("REMOVE")
+      console.log(array);
+      console.log($(event.target).parent().parent());
+      let newMealplan = []
+      if(array.length>1){
+        newMealplan = [... array];
+      }else{
+        newMealplan.push(array[0])
+      }
+      let parentId = $(event.target).parent().parent()[0].id;
+      console.log(parentId)
+      //console.log(id);
+      //console.log(newMealplan[0].time)
+
+      let filtPlan = [];
+      newMealplan.map((meal,i) => {
+        if(meal.day !== parentId){
+          filtPlan.push(meal);
+        }})
+      let newNutrients = this.mealPlanIngredients(filtPlan);
+      this.setState({
+          mealplan: {
+            meals: filtPlan,
+            nutrients: newNutrients,
+          }
+      });
+  }
 
   addIngredient(){
     const newIngs = [...this.state.recipe.ingredients];
@@ -365,7 +400,7 @@ class Infograph extends React.Component {
     }
 
   onDropMeal(e,meal){
-    console.log(meal)
+  //  console.log(meal)
     $(".highlight").removeClass("highlight")
     if(!($(e.target).hasClass("meal-is-in"))){
       console.log(e.target.id);
@@ -378,7 +413,7 @@ class Infograph extends React.Component {
       let updatedPlan = [... this.state.mealplan.meals];
       //console.log(updatedPlan);
       updatedPlan.push(newMeal);
-      console.log(updatedPlan);
+    //  console.log(updatedPlan);
       this.setState({
         mealplan: {
           meals:updatedPlan,
@@ -402,7 +437,7 @@ class Infograph extends React.Component {
   }
 
   filterCategories(object,category){
-    console.log(object,category)
+//    console.log(object,category)
     let arrayForD3 = []
     let nutrients = Object.keys(object);
     //console.log(nutrients);
@@ -478,7 +513,7 @@ class Infograph extends React.Component {
 
 
   render(){
-    console.log(this.state.nutrients);
+    console.log(this.state.mealplan);
     this.setNewIds(this.state.recipe.ingredients);
     this.checkNutPerIngredient(this.state.hover);
     const meals = ["breakfast", "lunch", "dinner"]
@@ -554,9 +589,10 @@ class Infograph extends React.Component {
                 onDrag={(event =>this.onDragMeal(event))}
                 onDrop={(event,meal) => this.onDropMeal(event, this.state.meal)}
                 onDragOver={(event) => this.onDragOver(event)}
-                onClick={(event,array) => this.deleteMeal(event.target.id, this.state.mealplan.meals)}
+                onClick={(event,array) => this.deleteMeal(event, this.state.mealplan.meals)}
                 mealPlanIngredients = {(mealplan)=> this.mealPlanIngredients(this.state.mealplan)}
-                meals = {this.state.mealplan.meals}
+                mealplan = {this.state.mealplan}
+                deleteRow = {(event,array) => this.deleteRow(event,array)}
             />
         </div>
 

@@ -29,11 +29,11 @@ class Bargraph extends Component {
     }
 
     drawBarChart(){
-      console.log($( ".bargraph" ).width())
+      //console.log($( ".bargraph" ).width())
       //console.log(this.props.dataSet);
       let data = this.handleFilter();
       let width = $( ".bargraph" ).width()*.75;
-      console.log(width)
+      //console.log(width)
       let height = data.length * 50
       //console.log(width)
       d3.select(this.refs.bargraph).selectAll("svg").remove();
