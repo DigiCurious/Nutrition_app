@@ -1,611 +1,515 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
-import './index.css';
 import './bootstrap.css';
-import $ from 'jquery';
-import AddNewRecipe from './addNewRecipe'
+import './app.css';
+import Recipe from './recipe'
+import Charts from './graphs'
 import Mealplan from './mealplan'
-import Charts from './charts'
-import Controller from './controller'
+import NewRecipeForm from './newRecipeForm'
+import styled from 'styled-components'
 
-const ingredients = [];
-
-function createData(id){
-  const amount = Math.round(Math.random()*100);
-  const ingredient = {
-    name: "ingredient" + id,
-    id: id,
-    amount: amount,
-    nutrients:{
-        calcium: {
-                  amount: Math.round(Math.random())/4,
-                  category: 'micro',
-                  subCategory: 'minerals'
-                },
-        magnesium: {
-                  amount: Math.round(Math.random())/4,
-                  category: 'micro',
-                  subCategory: 'minerals'
-                  },
-        potassium: {
-                  amount: Math.round(Math.random())/4,
-                  category: 'micro',
-                  subCategory: 'minerals'
-                  },
-        vitaminB12: {
-                  amount: Math.round(Math.random())/4,
-                  category: 'micro',
-                  subCategory: 'vitamins'
-                  },
-        vitaminD: {
-                  amount: Math.round(Math.random())/4,
-                  category: 'micro',
-                  subCategory: 'vitamins'
-                  },
-        vitaminC: {
-                  amount: Math.round(Math.random())/4,
-                  category: 'micro',
-                  subCategory: 'vitamins'
-                  },
-        zinc: {
-                  amount: Math.round(Math.random())/4,
-                  category: 'micro',
-                  subCategory: 'minerals'
-                  },
-        iron: {
-                  amount: Math.round(Math.random())/4,
-                  category: 'micro',
-                  subCategory: 'minerals'
-                  },
-        dailyCal: {
-                  amount: Math.round(Math.random())/4,
-                  category: 'micro',
-                  subCategory: 'minerals'
-                  },
-        protein: {
-                  amount: Math.floor(Math.random()*33),
-                  category:'macro'
-        },
-        fat: {
-                  amount: Math.floor(Math.random()*33),
-                  category:'macro'
-        },
-        carbs: {
-                  amount: Math.floor(Math.random()*33),
-                  category:'macro'
-        },
-    }
-  }
-
-  return ingredient;
-
-}
-
-for(var i=0; i<10; i++){
-  ingredients.push(createData(i));
-}
-
-function calculateNutrients(ingredient, nutrients){
-  Object.keys(ingredient.nutrients).map((nutrient)=>{
-    if(!nutrients[nutrient]){
-      nutrients[nutrient] = ingredient.amount * ingredient.nutrients[nutrient].amount;
-      //console.log(micros[nutrient]);
-    }else{
-      nutrients[nutrient] += ingredient.amount * ingredient.nutrients[nutrient].amount;
-      //console.log(micros[nutrient]);
-    }
-  })
-}
-
-function fillNutrients(ingredients){
-  let nutrients = {};
-  ingredients.map(ingredient=>{
-      calculateNutrients(ingredient,nutrients);
-    })
-  return nutrients
-}
 
 class Infograph extends React.Component {
   constructor(props){
     super(props);
     this.state = {
-      nameBar: '',
       recipe: {
-        name: 'Lasagne',
-        ingredients: ingredients,
+        yield: '',
+        name: '',
+        ingredients: [],
       },
-      nutrients:fillNutrients(ingredients),
-      hover: '',
-      meal: null,
       mealplan: {
-        meals:[],
-        nutrients:{}
+        plan:[{"breakfast": '', "lunch":'', "dinner":''}],
+        name: "Oskari's mealplan",
+        daysInMealPlan: 1
       },
-      filterText: '',
-      d3: ''
+      graphTitle: '',
+      nutrientsForGraphs: [],
+      hoverText: '',
+      UiRecipe: true,
+      addIngredient: false,
+      httpLoadingRecipe: true,
+      httpLoadingIngr: false,
     }
+    //this.loadRecipe = this.loadRecipe.bind(this);
+    this.loadIngredient = this.loadIngredient.bind(this);
+    //this.loadRecipe();
   }
 
-  setMicrosPerIngredient(name){
-    //console.log(name);
-    let newIngredients = this.state.recipe.ingredients.filter(ingredient=>(
-      ingredient.name == name
-    ))
+  createCORSRequest(method, url) {
+    console.log("in CORS")
+    var xhr = new XMLHttpRequest();
+    if ("withCredentials" in xhr) {
+      // XHR for Chrome/Firefox/Opera/Safari.
+      xhr.open(method, url, true);
+    } else if (typeof XMLHttpRequest != "undefined") {
+      // XDomainRequest for IE.
+      xhr = XMLHttpRequest()
+
+      xhr.open(method, url);
+    } else {
+      // CORS not supported.
+      xhr = null;
+    }
+    return xhr;
+  }
+
+  mapIngredients(title,ingredients,d,index) {
+    console.log("MAP INGREDIENTS " + index);
+    let newIngredients = ingredients.length>1 ? [] : this.state.recipe.ingredients.slice();
+
+
     //console.log(newIngredients);
-    let newNutrients = fillNutrients(newIngredients);
-    //console.log(newNutrients);
-    this.setState({
-      recipe:{
-        name: this.state.recipe.name,
-        ingredients: this.state.recipe.ingredients,
-        nutrients:newNutrients,
-      },
-      barGraphTitle: name,
-    });
-  }
 
-  handleSubmit(event){
+    ingredients.map(ingredient => {
+      let ingr = {
+        name:'',
+        quantity:'',
+        unit:'',
+        gramsInUnit: '',
+        weightInGrams: '',
+        nutrients:[]
+      };
+      // MAP THE NUTRIENTS
+      console.log(ingredient);
+      let gInUnit = ingredient.parsed[0].weight/ingredient.parsed[0].quantity;
+      let newNutrients = [];
+      let data = d;
+      let nutr = Object.keys(data.totalNutrients);
+      nutr.map(nut => {
+        //console.log(data)
+        //console.log(nut)
+        let nutObject = {name: '', quantity: '', unit:'', quantPerUnit: '', dailyTotalPerGram: ''}
+        let nutrient = ingredient.parsed[0].nutrients[nut];
+        let qPerGram;
+        if(nutrient !== undefined){
+          // calculate quantity per unit
+          qPerGram = nutrient.quantity/ingredient.parsed[0].weight;
+          //console.log(nut + 'per  gram = ' + qPerGram)
+          let dTotalPerUnit;
+          // calculate daily total per gram
+          if(data.totalNutrients[nut] && data.totalDaily[nut] !== undefined){
+            dTotalPerUnit = data.totalDaily[nut].quantity/data.totalNutrients[nut].quantity
+            //console.log(dTotalPerUnit)
+          }
 
-    event.preventDefault();
-    let nameRecipe = this.state.nameBar;
-    //console.log(nameRecipe)
-    let newRecipe = [];
-    for(var i =0; i<10; i++){
-      newRecipe.push(createData(i));
-    }
-    let newMicros = fillNutrients(newRecipe);
-    //console.log(newMicros)
 
-    this.setState(
-      {
-        recipe:{
-          name: nameRecipe,
-          ingredients: newRecipe,
-        },
-        nutrients:newMicros,
-        barGraphTitle: nameRecipe,
-      }
-    );
-  }
 
-  checkNutPerIngredient(nutrient){
-      //console.log(nutrient);
-      let theIng = this.state.recipe.ingredients[0];
-      this.state.recipe.ingredients.map((ing, index) => {
-        if(ing.amount > 0 && nutrient.length>2 && ing.amount * ing.nutrients[nutrient].amount > ing.amount * theIng.nutrients[nutrient].amount){
-          //console.log("we are here");
-          //console.log("ollaan täällä")
-          theIng = ing;
-          //console.log(theIng.id);
+          //create nutrient object
+          nutObject = {
+                        name: nutrient.label,
+                        unit: nutrient.unit,
+                        quantPerIngrGram: qPerGram,
+                        dailyPercentagePerUnit: dTotalPerUnit,
+                      }
+
+          newNutrients.push(nutObject);
         }
       })
-
-      let id = nutrient.length>2 ? theIng.id : null
-      if(id !== null){
-        let idStr = id.toString();
-        var el = $('#'+ idStr ).find('.slider');
-        //console.log(el);
-        el.addClass("highlight")
-      }
-
-      //return theIng.id;
-  }
-
-  highlightIngredient(event,nutrient){
-  //  console.log();
-    $('.bargraphs').find('p').removeClass("highlight-text");
-    $(event.target).addClass("highlight-text")
-    this.setState({
-      hover: nutrient
-    })
-    if(this.state.hover.length > 0){
-        this.checkNutPerIngredient(nutrient);
-    }
-  }
-
-  setNewIds(array){
-    array.map((el,index) => el.id = index)
-  }
-
-  removeHighlights(){
-    $('.slidecontainer').find('.slider').removeClass("highlight")
-    $('.highlight').removeClass("highlight");
-    $('.highlight-text').removeClass("highlight-text");
-    this.setState({
-      hover: '',
-    })
-  }
-
-  handleChange(e){
-    const newIngredients = this.state.recipe.ingredients.slice();
-    newIngredients[e.target.getAttribute("data-index")].amount = Number(e.target.value);
-    const newNutrients = fillNutrients(newIngredients);
-
-    //console.log(newIngredients[e.target.getAttribute("data-index")].amount * newIngredients[e.target.getAttribute("data-index")].nutrients["calcium"].amount)
-    this.setState(
-      {
-        recipe:{
-          name: this.state.recipe.name,
-          ingredients: newIngredients,
-        },
-        nutrients: newNutrients,
-      }
-    );
-  }
-
-  hideCategory(e){
-      $(".nutrientTab").removeClass("active");
-      $(e.target).addClass("active");
-      //console.log(e.target);
-      //console.log(e.target.innerText);
-      $(".nutrients").addClass("hide");
-      $("#" + e.target.innerText).removeClass("hide");
-    }
-
-  minimize(e){
-//    console.log("HERE")
-    $(e.target).prev().toggleClass("hide")
-    this.setState({
-      mealplan: this.state.mealplan
-    });
-  }
-
-  handleDelete(id){
-      //console.log("REMOVE")
-      //console.log(id)
-      let newIngredients = [... this.state.recipe.ingredients];
-      let filtIngs = newIngredients.filter(function(ing){
-        return(ing.id != id);
-      });
-      const newNutrients = fillNutrients(filtIngs);
-      //console.log(filtIngs);
-      this.setNewIds(this.state.recipe.ingredients);
-      this.setState({
-        recipe:{
-          name: this.state.recipe.name,
-          ingredients: filtIngs,
-        },
+      let weight = gInUnit * ingredient.parsed[0].quantity;
+      // CREATE THE SINGLE INGREDIENT OBJECT
+      ingr = {
+        name: ingredient.parsed[0].food,
+        quantity: ingredient.parsed[0].quantity,
+        unit: ingredient.parsed[0].measure,
+        gramsInUnit: gInUnit,
+        weightInGrams: weight,
         nutrients: newNutrients
-      });
-  }
-
-  deleteMeal(event,array){
-     console.log("REMOVE")
-
-     let newMealplan = []
-     if(array.length>1){
-       newMealplan = [... array];
-     }else{
-       newMealplan.push(array[0])
-     }
-     console.log(event.target.id);
-     let parentId = $(event.target).parent()[0].id;
-     console.log(parentId)
-     console.log($('#'+ parentId).find($('#' + event.target.id))[0]);
-     //console.log(id);
-     //console.log(newMealplan[0].time)
-
-     let filtPlan = [];
-     newMealplan.map((meal,i) => {
-       if(!((meal.time === event.target.id) && (meal.day === parentId))){
-         filtPlan.push(meal);
-       }})
-     let newNutrients = this.mealPlanIngredients(filtPlan);
-     this.setState({
-         mealplan: {
-           meals: filtPlan,
-           nutrients: newNutrients,
-         }
-     });
-     let parent = document.getElementById(parentId)
-     let el = parent.querySelector("#"+ event.target.id);
-     console.log(el);
-     $(el).removeClass("meal-is-in");
-     //el.text("POISTETTU");
- }
-
-  deleteRow(event,array){
-      console.log("REMOVE")
-      console.log(array);
-      console.log($(event.target).parent().parent());
-      let newMealplan = []
-      if(array.length>1){
-        newMealplan = [... array];
+      }
+      console.log(index)
+      if(index !== undefined){
+        newIngredients.splice(index, 0, ingr)
       }else{
-        newMealplan.push(array[0])
+        newIngredients.push(ingr);
       }
-      let parentId = $(event.target).parent().parent()[0].id;
-      console.log(parentId)
-      //console.log(id);
-      //console.log(newMealplan[0].time)
+    });
+    //nutrients for the graphs
+    //console.log(d.yield)
+    let servings = d.yield !== undefined ? d.yield : this.state.recipe.yield;
+    let nutrientArray = this.calculateNutrientsForGraphs(servings, newIngredients);
 
-      let filtPlan = [];
-      newMealplan.map((meal,i) => {
-        if(meal.day !== parentId){
-          filtPlan.push(meal);
-        }})
-      let newNutrients = this.mealPlanIngredients(filtPlan);
-      this.setState({
-          mealplan: {
-            meals: filtPlan,
-            nutrients: newNutrients,
-          }
-      });
-  }
+    // SET STATE
 
-  addIngredient(){
-    const newIngs = [...this.state.recipe.ingredients];
-    //console.log("NEW INGS IS " + newIngs);
-    newIngs.push(createData(this.state.recipe.ingredients.length));
-    let newNutrients = fillNutrients(newIngs);
     this.setState({
       recipe:{
-        name: this.state.recipe.name,
-        ingredients: newIngs,
+        yield: servings,
+        name: title,
+        ingredients:newIngredients,
       },
-      nutrients: newNutrients,
-      hover:'',
+      graphTitle: title,
+      nutrientsForGraphs: nutrientArray
     });
+
+    return newIngredients;
   }
 
-  onDragRecipe(event, meal){
-    //console.log("onDragRecipe")
-    let newMeal = {
-      recipe:{
-        name: this.state.recipe.name,
-        ingredients: this.state.recipe.ingredients,
-        nutrients: this.state.nutrients,
-      },
-      barGraphTitle: this.state.barGraphTitle,
-      day: '',
-      time: '',
-    }
-    //console.log(newMeal)
-    event.preventDefault();
+  toggleInput(){
     this.setState({
-        meal: newMeal,
-    });
-    //console.log(this.state.meal)
-  }
-
-  onDragMeal(event){
-    //console.log("onDragMeal")
-    let id = event.target.id;
-
-    $("#" + id).keydown(e=>{
-      if(e.keyCode == 91){
-        $("#" + id).removeClass("meal-is-in");
-        console.log("POHJASSA")
-      }
+      addIngredient: !this.state.addIngredient
     })
-
-    //$(event.target).removeClass("meal-is-in")
-
-    //console.log(this.state.mealplan);
-    //console.log(id);
-    let newMealPlan = [... this.state.mealplan.meals];
-    let filteredMeal = newMealPlan.filter(meal => meal.time == id);
-    //console.log(filteredMeal[0])
-    event.preventDefault();
-    this.setState({
-      meal: filteredMeal[0],
-    });
-    //console.log(this.state.meal)
   }
 
-  onDragOver(event,className){
-        $(".highlight").removeClass("highlight")
-        event.preventDefault();
-        $(event.target).addClass("highlight");
+  loadRecipe(title,servs,ingr) {
+    console.log("IN LOAD RECIPE" + title + servs + ingr);
+    let app_id = "e30e009f"
+    let app_key = "9f05b5053b366231a8afb715fd162640"
+    let recipe = {
+                  "title": title,
+                  "yield": servs,
+                  "ingr": ingr
+                }
+
+    var url = 'https://api.edamam.com/api/nutrition-details?app_id=' + app_id + '&app_key=' + app_key;
+
+    var xhr = this.createCORSRequest('POST', url);
+    if (!xhr) {
+      alert('CORS not supported');
+      return;
+    }
+    this.setState({httpLoadingRecipe: !this.state.httpLoadingRecipe});
+    // Response handlers.
+    xhr.onreadystatechange = () => {
+      console.log(xhr.readyState);
+      if (xhr.readyState === 4){
+        console.log("in readyState");
+        var text = xhr.responseText;
+        let data = JSON.parse(text);
+        console.log(data);
+        //console.log(JSON.parse(text).ingredients);
+        let ingredients = JSON.parse(text).ingredients;
+
+        //MAP INGREDIENTS
+        this.mapIngredients(title,ingredients, data);
+        this.setState({httpLoadingRecipe: !this.state.httpLoadingRecipe});
+      }
     }
 
-  onDropMeal(e,meal){
-  //  console.log(meal)
-    $(".highlight").removeClass("highlight")
-    if(!($(e.target).hasClass("meal-is-in"))){
-      console.log(e.target.id);
-      $(e.target).addClass("meal-is-in");
-      let newMeal = {... meal};
-      newMeal.day = e.target.parentElement.id;
-      newMeal.time = e.target.id;
-      //console.log(meal);
-      //console.log("we are at onDrop");
-      let updatedPlan = [... this.state.mealplan.meals];
-      //console.log(updatedPlan);
-      updatedPlan.push(newMeal);
-    //  console.log(updatedPlan);
+    xhr.onerror = () => {
+      alert('Woops, there was an error making the request.');
+    };
+
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.send(JSON.stringify(recipe));
+  }
+
+  loadIngredient(ingredient,index) {
+    console.log("LOADINGREDIENT" + index);
+    let app_id = "e30e009f"
+    let app_key = "9f05b5053b366231a8afb715fd162640"
+    let ingr = ingredient
+    var url = 'https://api.edamam.com/api/nutrition-data?app_id=' + app_id + '&app_key=' + app_key + '&ingr=' + ingredient
+
+    var xhr = this.createCORSRequest('GET', url);
+    if (!xhr) {
+      alert('CORS not supported');
+      return;
+    }
+
+    this.setState({httpLoadingIngr: !this.state.httpLoadingIngr});
+    // Response handlers.
+
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState === 4){
+        this.deleteIngredient(index);
+        console.log("here")
+        let text = xhr.responseText;
+        let newIngredients = this.state.recipe.ingredients.slice();
+        let data = JSON.parse(text);
+
+        console.log(data);
+        let title = this.state.recipe.name
+        this.mapIngredients(title, data.ingredients, data, index);
+        this.setState({httpLoadingIngr: !this.state.httpLoadingIngr});
+        //this.toggleInput();
+      }
+    }.bind(this);
+
+    xhr.onerror = function() {
+      alert('Woops, there was an error making the request.');
+    };
+
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.send(JSON.stringify({'ingr':ingr}));
+  }
+
+
+  calculateNutrientsForGraphs(servs, ingredients){
+    //console.log(ingredients[0].quantity)
+    //console.log(ingredients[0].weightInGrams);
+    //Calculate nutrients of all the ingredients for the graphs
+    let servings = servs;
+    //console.log(servings);
+    let nutrientsArray = [];
+
+    ingredients.map(ingredient => {
+      ingredient.nutrients.map(nutrient => {
+        let totalNut = ingredient.weightInGrams * (nutrient.quantPerIngrGram * nutrient.dailyPercentagePerUnit);
+        //add totalNut to the array element
+        let isNewNutrient = true;
+        nutrientsArray.map(obj => {
+            if(nutrientsArray.length>0 && obj.name === nutrient.name){
+              if(!totalNut){
+                totalNut = 0;
+              }
+              //console.log(totalNut);
+              obj.quantity += totalNut/servings;
+              //console.log(obj)
+              isNewNutrient = false;
+            }
+        })
+        if(isNewNutrient){
+            nutrientsArray.push({name:nutrient.name, quantity: totalNut/servings})
+        }
+
+      })
+    })
+      //console.log(nutrientsArray);
+      return nutrientsArray;
+  }
+
+  handleIngrChange(e,index){
+      //console.log(e.target.value);
+      console.log(index);
+      if(e.target.type == 'number'){
+        let newIngredients = this.state.recipe.ingredients.slice();
+        console.log(newIngredients);
+
+        newIngredients[index].quantity = Number(e.target.value)
+        newIngredients[index].weightInGrams = Number(e.target.value) * newIngredients[index].gramsInUnit;
+        let servings = this.state.recipe.yield;
+        let nutrientArray = this.calculateNutrientsForGraphs(servings, newIngredients);
+        this.setState({
+          recipe:{
+            yield: this.state.recipe.yield,
+            name: this.state.recipe.name,
+            ingredients: newIngredients
+          },
+          nutrientsForGraphs: nutrientArray
+        })
+        //console.log(newIngredients);
+
+      }
+    }
+
+  replaceIngredient(e,i){
+    this.deleteIngredient(i);
+  }
+
+  addIngredient(e, ingr, index){
+    e.preventDefault();
+
+    let newIngr = ingr.quantity + ' ' + ingr.unit + ' ' + ingr.produce
+    this.loadIngredient(newIngr, index)
+  }
+
+  deleteIngredient(i){
+    //console.log("delete")
+    //console.log(i);
+    let newIngredients = this.state.recipe.ingredients.slice();
+    newIngredients.splice(i,1)
+    //console.log(newIngredients);
+    let nutrientArray = this.calculateNutrientsForGraphs(this.state.recipe.yield, newIngredients)
+    this.setState({
+      recipe:{
+        yield: this.state.recipe.yield,
+        name: this.state.recipe.name,
+        ingredients: newIngredients,
+      },
+      nutrientsForGraphs: nutrientArray
+    })
+  }
+
+  changeYield(e){
+    let nutrientsArray = this.calculateNutrientsForGraphs(e.target.value, this.state.recipe.ingredients);
+    this.setState({
+      recipe:{
+          yield:e.target.value,
+          name:this.state.recipe.name,
+          ingredients:this.state.recipe.ingredients,
+        },
+        nutrientsForGraphs: nutrientsArray
+        }
+      )
+  }
+
+  changeDaysInMealplan(e){
+    let plan = this.state.mealplan.plan;
+    let newPlan = plan.slice()
+    if(e.target.value > newPlan.length){
+      newPlan.push({'breakfast':'', 'lunch': '', 'dinner': ''})
+    }else{
+      newPlan.pop();
+    }
+    this.setState({
+      mealplan:{
+            name:this.state.mealplan.name,
+            plan:newPlan,
+            daysInMealPlan: Number(e.target.value)
+      }
+    }
+    )
+  }
+
+  manipulateMealplan(e){
+    //alert("manipulate mealplan")
+    //console.log(e.target);
+    //e.target.classList.toggle("mealIn")
+    let dayId = e.target.parentNode.id;
+    let meal = e.target.id;
+    let mealplan = this.state.mealplan.plan.slice();
+    //console.log(mealplan[dayId][meal])
+
+    if(mealplan[dayId][meal] == ''){
+      mealplan[dayId][meal] = this.state.recipe
+
       this.setState({
-        mealplan: {
-          meals:updatedPlan,
-          nutrients: this.state.mealplan.nutrients
+        mealplan:{
+          name: this.state.mealplan.name,
+          plan: mealplan,
+          daysInMealPlan: this.state.mealplan.daysInMealPlan
         }
       })
-    }
-  }
-
-  onDropRecipe(e,meal){
-    //console.log(meal);
-    this.removeHighlights();
+    }else{
+      mealplan[dayId][meal] = '';
       this.setState({
-        recipe:{
-          name: meal.recipe.name,
-          ingredients: meal.recipe.ingredients,
-        },
-        nutrients: meal.recipe.nutrients,
-        barGraphTitle: meal.recipe.name,
-      })
-  }
-
-  filterCategories(object,category){
-//    console.log(object,category)
-    let arrayForD3 = []
-    let nutrients = Object.keys(object);
-    //console.log(nutrients);
-    //console.log(this.state.recipe.ingredients[0].nutrients[nutrients[0]].category);
-    nutrients.map(nutrient=>{
-      if(this.state.recipe.ingredients[0].nutrients[nutrient].category === category){
-        //console.log("täällä")
-        let nutrientObj = {};
-        nutrientObj['name'] = nutrient;
-        nutrientObj['amount'] = object[nutrient];
-        arrayForD3.push(nutrientObj);
+        mealplan:{
+          name: this.state.mealplan.name,
+          plan: mealplan,
+          daysInMealPlan: this.state.mealplan.daysInMealPlan
+        }
+      });
       }
-    })
-    //console.log(arrayForD3);
-    return arrayForD3
-  }
-
-  mealPlanIngredients(mealplan){
-    console.log(mealplan);
-    //console.log(this.state)
-    let nutrients = Object.keys(this.state.nutrients)
-    let newNutrients = {... this.state.nutrients}
-
-    function fillNewNut(meal){
-      let tempNutrients = {
-            calcium: 0,
-            magnesium: 0,
-            potassium: 0,
-            vitaminB12: 0,
-            vitaminD: 0,
-            vitaminC: 0,
-            zinc: 0,
-            iron: 0,
-            dailyCal: 0,
-            protein: 0,
-            fat: 0,
-            carbs: 0,
-            }
-      nutrients.map(nutrient=>{
-          //console.log(meal);
-          tempNutrients[nutrient] += meal.recipe.nutrients[nutrient]
-      })
-      return tempNutrients
     }
-    //console.log(this.state.mealplan);
-    //console.log(this.state.mealplan.meals);
-    this.state.mealplan.meals.map(
-      (meal,i)=>{
-        console.log("we are here");
-        console.log(meal);
-        let tempNut = fillNewNut(meal);
-        nutrients.map(nutrient=>{
-          if(i==0){
-            newNutrients[nutrient] = tempNut[nutrient]
+
+    analyzeMealplan(mealplan){
+      //console.log(mealplan);
+      console.log(mealplan.daysInMealPlan)
+      let mealTimes = Object.keys(mealplan.plan[0]);
+      let plan = mealplan.plan;
+      let nutrientArrayMP = [];
+      plan.map((day,index) => mealTimes.map((mealTime,i) => {
+        //console.log(index, mealTime);
+        if(day[mealTime] !== ''){
+          let nutrientArray = this.calculateNutrientsForGraphs(day[mealTime].yield,day[mealTime].ingredients);
+          if(nutrientArrayMP.length > 0){
+            nutrientArrayMP.map((nutrient,index) => {
+              //console.log(nutrient);
+              //console.log(nutrientArray);
+              nutrient.quantity += nutrientArray[index].quantity;
+              nutrient.quantity = nutrient.quantity/mealplan.daysInMealPlan
+            });
           }else{
-            newNutrients[nutrient] += tempNut[nutrient]
+            nutrientArrayMP = nutrientArray;
           }
-        })
-        console.log(newNutrients);
-      }
-    )
+        }
+      }))
+
+      this.setState({nutrientsForGraphs: nutrientArrayMP, graphTitle: mealplan.name});
+    }
+
+  onIngredientClick(e){
+    //console.log(e.target.id);
+    let servings = this.state.recipe.yield;
+    let ingredients = [];
+    ingredients.push(this.state.recipe.ingredients[e.target.id])
+    console.log(ingredients);
+    let nutrientArray = this.calculateNutrientsForGraphs(servings, ingredients)
 
     this.setState({
-      nutrients: newNutrients,
-      mealplan:{
-        meals: this.state.mealplan.meals,
-        nutrients: newNutrients
-      }
-      }
-    )
+      graphTitle: this.state.recipe.ingredients[e.target.id].name + ' in ' + this.state.recipe.name,
+      nutrientsForGraphs:nutrientArray
+    })
   }
 
+  onRecipeClick(e){
+    console.log(e.target.id);
+    let servings = this.state.recipe.yield;
+    let ingredients = this.state.recipe.ingredients;
+    let nutrientArray = this.calculateNutrientsForGraphs(servings, ingredients)
 
+    this.setState({
+      graphTitle: this.state.recipe.name,
+      nutrientsForGraphs:nutrientArray
+    })
+  }
+
+  openRecipeForm(){
+    console.log(this.state.UiRecipe);
+    this.setState({
+      UiRecipe: !this.state.UiRecipe
+    },console.log(this.state.UiRecipe))
+  }
 
   render(){
-    console.log(this.state.mealplan);
-    this.setNewIds(this.state.recipe.ingredients);
-    this.checkNutPerIngredient(this.state.hover);
-    const meals = ["breakfast", "lunch", "dinner"]
-    return(
-      <div>
-      <div className="row">
-          <AddNewRecipe
-            onSubmit = {(event => this.handleSubmit(event))}
-            onChange={(event)=>(this.setState({nameBar:event.target.value}))}
+    const theme = {
+        colors: {
+          bg: "#FFF6E8",
+          lines: "#C9B79C",
+          fonts: "#563635",
+          shapes: "#BEE6CE",
+          accent: "#647260"
+        }
+    }
+
+    const Container = styled.div`
+      box-shadow: ${props => `0px 10px 10px 0px ${theme.colors.lines}`};
+      margin-bottom: 50px;
+    `
+    //console.log(this.state.recipe)
+    console.log(this.state.mealplan)
+    let uiElement;
+    if(this.state.UiRecipe && this.state.httpLoadingRecipe){
+      //console.log("UiRecipe is true");
+      uiElement = <Recipe
+        theme = {theme}
+        onRecipeClick = {(e)=>(this.onRecipeClick(e))}
+        onIngredientClick = {(e)=>(this.onIngredientClick(e))}
+        recipe = {this.state.recipe}
+        handleIngrChange = {(e,d) => this.handleIngrChange(e,d)}
+        deleteIngredient = {(i) => this.deleteIngredient(i)}
+        addIngredient = {(e,ingr,i) => this.addIngredient(e,ingr,i)}
+        replaceIngredient = {(e,i) => this.replaceIngredient(e,i)}
+        changeYield= {(e)=>this.changeYield(e)}
+        openRecipeForm={()=>this.openRecipeForm()}
+        toggleInput = {()=>this.toggleInput()}
+        ifAdd = {this.state.addIngredient}
+        loading = {this.state.httpLoadingIngr}
+      />
+    }else if(this.state.UiRecipe && !this.state.httpLoadingRecipe){
+      uiElement = <div className="col-6"><p>LOADING</p></div>
+    }
+    else if(!this.state.UiRecipe){
+      console.log("UiRecipe is false");
+      uiElement = <NewRecipeForm openRecipeForm={()=>this.openRecipeForm()} recipe={this.state.recipe} loadRecipe = {(name,servs,ingr) => this.loadRecipe(name,servs,ingr)} theme = {theme}/>
+    }
+
+    return (
+      <div className="app">
+        <div className="row">
+          {uiElement}
+          <Charts
+            theme = {theme}
+            title = {this.state.graphTitle}
+            data = {this.state.nutrientsForGraphs}
           />
+        </div>
+        <div className="row">
+          <Mealplan
+            analyzeMealplan = {(mealplan) => this.analyzeMealplan(mealplan)}
+            theme = {theme}
+            recipe = {this.state.recipe}
+            mealplan={this.state.mealplan}
+            changeDaysInMealplan = {(e)=>this.changeDaysInMealplan(e)}
+            manipulateMealplan = {(e) => this.manipulateMealplan(e)}
+            onMealHover = {(e)=>this.onMealHover(e)}
+            calculateNutrients = {(x,y)=>this.calculateNutrientsForGraphs(x,y)}
+          />
+        </div>
       </div>
-      <div className="row">
-            <div className="col ingredients ui-box"
-                  id = "recipe"
-                  onDrop = {(e,meal) => this.onDropRecipe(e, this.state.meal)}
-                  onDragOver={((event, className) => this.onDragOver(event, "ingredients"))}
-            >
-                  <h2 onClick={()=>{
-                        let newMicros = fillNutrients(this.state.recipe.ingredients);
-                        return this.setState({
-                            recipe:{
-                                ingredients: this.state.recipe.ingredients,
-                                name: this.state.recipe.name
-                              },
-                              nutrients: newMicros,
-                          })
-                      }}>{this.state.recipe.name}
-                  </h2>
-                  <div>
-                    {this.state.recipe.ingredients.map((ing,index) => {
-                      return(
-                      <Controller
-                        name = {ing.name}
-                        hover = {this.state.hover}
-                        ing = {ing}
-                        key={index}
-                        id={index}
-                        setMicros={(name) => {this.setMicrosPerIngredient(name)}}
-                        amount = {ing.amount}
-                        onChange = {(e) => {this.handleChange(e)}}
-                        remove = {(id) => this.handleDelete(id)}
-                      />
-                    )})}
-                  </div>
-                  <div className="row buttons">
-                    <div className="col">
-                      <button className = "btn btn-block btn-primary" onClick={()=> this.addIngredient()}>Add Ingredient</button>
-                    </div>
-                    <div className="col">
-                      <button className = "btn btn-block btn-primary" draggable onDrag = {(e)=>this.onDragRecipe(e)}>Drag To Meal Plan</button>
-                    </div>
-                  </div>
-            </div>
-            <div className="minimize" onClick = {(e) => {this.minimize(e)}}>
-              <p>M I N I M I Z E {"<"}</p>
-            </div>
-
-            <div className="col bargraphs ui-box">
-                <Charts title={this.state.recipe.name}
-                        nutrients = {this.state.nutrients}
-                        filterData = {(nutrients,category) => this.filterCategories(nutrients, category)}
-                        hideCategory = {(event)=> this.hideCategory(event)}
-                />
-            </div>
-            <div className="minimize" onClick = {(e) => {this.minimize(e)}}>
-              <p>M I N I M I Z E {"<"}</p>
-            </div>
-
-        </div>
-
-        <div className="mealplan">
-            <Mealplan
-                onDrag={(event =>this.onDragMeal(event))}
-                onDrop={(event,meal) => this.onDropMeal(event, this.state.meal)}
-                onDragOver={(event) => this.onDragOver(event)}
-                onClick={(event,array) => this.deleteMeal(event, this.state.mealplan.meals)}
-                mealPlanIngredients = {(mealplan)=> this.mealPlanIngredients(this.state.mealplan)}
-                mealplan = {this.state.mealplan}
-                deleteRow = {(event,array) => this.deleteRow(event,array)}
-            />
-        </div>
-
-    </div>
-
     )
   }
-
 }
 
 // ========================================
 
-ReactDOM.render(
-  <Infograph />,
-  document.getElementById('root')
-);
+ReactDOM.render(<Infograph />, document.getElementById('root'));

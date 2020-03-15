@@ -36,7 +36,7 @@ class Bargraph extends Component {
         .attr("transform", "translate(" + width / 2 + "," + height / 2 + ")");
 
     // Create dummy data
-    var dataset = this.props.dataSet;
+    var dataset = this.props.data;
     //console.log(dataset);
     var theSum = 0;
     dataset.forEach((dPoint) =>{
